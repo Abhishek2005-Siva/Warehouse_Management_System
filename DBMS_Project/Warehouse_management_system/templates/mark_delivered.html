@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mark Product as Delivered</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .form-container {
+            background-color: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        input[type="date"], button {
+            padding: 10px;
+            margin-top: 10px;
+            width: 100%;
+        }
+        h2 {
+            color: #0077b6;
+        }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <h2>Mark as Delivered</h2>
+        <p><strong>Product:</strong> {{ product_name }}</p>
+        <form method="post">
+            {% csrf_token %}
+            <label for="date">Delivered On:</label>
+            <input type="date" name="actual_date" required>
+            <input type="hidden" name="product_id" value="{{ product_id }}">
+            <button type="submit">Submit</button>
+        </form>
+    </div>
+</body>
+</html>
