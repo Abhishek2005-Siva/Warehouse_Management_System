@@ -8,7 +8,6 @@ from datetime import date, timedelta
 import random
 
 def verify_otp(request):
-    print("Hereeeeeeeeeee")
     if request.method == 'POST':
         input_otp = request.POST.get('otp')
         data = request.session.get('signup_data')
@@ -74,7 +73,25 @@ def customer_signup(request):
 
         if not all([customer_name, customer_email, customer_password]):
             return render(request, 'customer_signup.html', {'error': 'Please fill all fields.'})
+        
+        conn = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                password="Letmein2272",
+                database="InventoryDB"
+            )
+        cursor = conn.cursor()
+        cursor.execute("Select * from customer where customeremail=%s",(customer_email,))
+        answer=cursor.fetchone()
+        if answer is not None:
+            return render(request, 'customer_signup.html', {'error': 'Email is already used by another Account. Use another email!'})
 
+
+        cursor.execute("Select * from customer where customername=%s",(customer_name,))
+        answer=cursor.fetchone()
+        if answer is not None:
+            return render(request, 'customer_signup.html', {'error': 'Name already exists. Use another Name!'})
+        
         otp = str(random.randint(100000, 999999))
 
         # Save all data including OTP to session
@@ -84,7 +101,6 @@ def customer_signup(request):
             'password': customer_password,
             'otp': otp
         }
-        print(otp)
 
         # Send OTP email
         send_mail(
@@ -100,7 +116,7 @@ def customer_signup(request):
     return render(request, 'customer_signup.html')
 
 
-def admin_login(request):
+def admin_signup(request):
     if request.method == 'POST':
         admin_id = request.POST['admin_id']
         admin_name = request.POST['admin_name']
@@ -172,9 +188,8 @@ def mainpage(request):
 
 def admin_login(request):
     if request.method == "POST":
-        email = request.POST['email']
+        name = request.POST['name']
         password = request.POST['password']
-        print(email,password)
 
         conn = mysql.connector.connect(
             host="localhost",
@@ -183,7 +198,7 @@ def admin_login(request):
             database="InventoryDB"
         )
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Admin WHERE AdminEmail=%s AND AdminPassword=%s", (email, password))
+        cursor.execute("SELECT * FROM Admin WHERE AdminName=%s AND AdminPassword=%s", (name, password))
         admin = cursor.fetchone()
         conn.close()
 
@@ -191,14 +206,65 @@ def admin_login(request):
             request.session['admin_logged_in'] = True
             return redirect('admin_dashboard')
         else:
-            return HttpResponse("Invalid credentials")
+            return render(request, 'admin_login.html', {'error': 'Wrong credentials!'})
 
     return render(request, 'admin_login.html')
+
+def update_cell(request):
+    if request.method == 'POST':
+        import mysql.connector
+        from django.shortcuts import redirect, render
+
+        conn = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="Letmein2272",
+            database="InventoryDB"
+        )
+        cursor = conn.cursor()
+
+        for key, value in request.POST.items():
+            if key.startswith("cell_"):
+                # Expected format: cell_tablename_columnname_primarykeyname_primarykeyvalue
+                parts = key.split("_")
+                if len(parts) < 5:
+                    continue  # skip invalid entries
+
+                table_name = parts[1]
+                column_name = parts[2]
+                primary_key_name = parts[3]
+                primary_key_value = parts[4]
+
+                # Prepare the SQL query dynamically
+                query = f"UPDATE `{table_name}` SET `{column_name}` = %s WHERE `{primary_key_name}` = %s"
+                cursor.execute(query, (value, primary_key_value))
+
+        conn.commit()
+
+        # ---------------------------------------------
+        # Fetch data again like your admin_dashboard view
+        data = {}
+        cursor.execute("SHOW TABLES")
+        tables = [t[0] for t in cursor.fetchall()]
+
+        for table_name in tables:
+            cursor.execute(f"SELECT * FROM `{table_name}`")
+            rows = cursor.fetchall()
+            columns = [desc[0] for desc in cursor.description]
+            data[table_name] = {'columns': columns, 'rows': rows}
+        # ---------------------------------------------
+
+        cursor.close()
+        conn.close()
+
+        return render(request, 'admin_dashboard.html', {'data': data, 'saved': 'Saved all changes!'})
+
 
 
 def customer_login(request):
     if request.method == "POST":
         name = request.POST['name']
+        password=request.POST['password']
         
 
         conn = mysql.connector.connect(
@@ -211,14 +277,15 @@ def customer_login(request):
         cursor.execute("SELECT * FROM Customer WHERE CustomerName=%s", (name,))
         customer = cursor.fetchone()
         conn.close()
+        
 
-        if customer:
+        if customer and (customer['CustomerPassword']==password):
             request.session['customer_logged_in'] = True
             request.session['customer_name'] = name
             request.session['customer_id'] = customer['CustomerID']
             return redirect('customer_dashboard')
         else:
-            return HttpResponse("Customer not found")
+            return render(request, 'customer_login.html', {'error': 'Wrong Password'})
 
     return render(request, 'customer_login.html')
 

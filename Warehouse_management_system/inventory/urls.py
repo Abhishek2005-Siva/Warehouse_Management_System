@@ -20,4 +20,5 @@ urlpatterns = [
     path('provider/mark-delivered/', views.mark_delivered, name='mark_delivered'),
     path('provider/deliveries/', views.view_deliveries, name='view_deliveries'),
     path('provider/decline/', views.decline_request, name='decline_request'),
+    path('update_cell/', views.update_cell, name='update_cell'),
 ]
