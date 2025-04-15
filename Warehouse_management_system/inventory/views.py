@@ -159,7 +159,7 @@ def admin_dashboard(request):
     tables = [
         "Admin", "Customer", "Provider", "Product",
         "`Order`", "OrderDetail", "Delivery", "DeliveryDetail",
-        "Inventory", "Location", "Transfer", "Warehouse","request"
+        "Inventory", "Warehouse","request"
     ]
 
     data = {}
