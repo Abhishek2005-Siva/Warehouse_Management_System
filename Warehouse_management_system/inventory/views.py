@@ -6,6 +6,7 @@ from django.core.mail import send_mail
 import mysql.connector
 from datetime import date, timedelta
 import random
+from datetime import datetime
 
 def verify_otp(request):
     if request.method == 'POST':
@@ -147,20 +148,48 @@ def admin_signup(request):
 def admin_dashboard(request):
     if not request.session.get('admin_logged_in'):
         return redirect('admin_login')
+
     connection = mysql.connector.connect(
         host="localhost",
         user="root",
         password="Letmein2272",
         database="InventoryDB"
     )
-
     cursor = connection.cursor()
 
     tables = [
         "Admin", "Customer", "Provider", "Product",
         "`Order`", "OrderDetail", "Delivery", "DeliveryDetail",
-        "Inventory", "Warehouse","request"
+        "Inventory", "Warehouse", "request"
     ]
+
+    message = ""
+
+    if request.method == 'POST':
+        # Group new records
+        new_records = {}
+        for key, value in request.POST.items():
+            if key.startswith('new_') and value.strip() != "":
+                _, table_name, column_name = key.split('_', 2)  # new_Table_Column
+                if table_name not in new_records:
+                    new_records[table_name] = {}
+                new_records[table_name][column_name] = value.strip()
+
+        # Insert new records into their respective tables
+        for table_name, columns_values in new_records.items():
+            cols = ', '.join(f"`{col}`" for col in columns_values.keys())
+            placeholders = ', '.join(['%s'] * len(columns_values))
+            values = list(columns_values.values())
+
+            try:
+                cursor.execute(
+                    f"INSERT INTO {table_name} ({cols}) VALUES ({placeholders})",
+                    values
+                )
+                connection.commit()
+                message += f"✔️ Added new record to {table_name}! "
+            except Exception as e:
+                message += f"❌ Error adding to {table_name}: {e} "
 
     data = {}
 
@@ -182,7 +211,8 @@ def admin_dashboard(request):
     cursor.close()
     connection.close()
 
-    return render(request, 'admin_dashboard.html', {'data': data})
+    return render(request, 'admin_dashboard.html', {'data': data, 'saved': message})
+
 def mainpage(request):
     return render(request, 'mainpage.html')
 
@@ -212,9 +242,6 @@ def admin_login(request):
 
 def update_cell(request):
     if request.method == 'POST':
-        import mysql.connector
-        from django.shortcuts import redirect, render
-
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
@@ -235,14 +262,38 @@ def update_cell(request):
                 primary_key_name = parts[3]
                 primary_key_value = parts[4]
 
-                # Prepare the SQL query dynamically
-                query = f"UPDATE `{table_name}` SET `{column_name}` = %s WHERE `{primary_key_name}` = %s"
-                cursor.execute(query, (value, primary_key_value))
+                # 🟢 Handle empty value for date fields
+                if 'Date' in column_name or 'date' in column_name:
+                    if value.strip() == "":
+                        value = None  # set NULL for MySQL
+                    else:
+                        try:
+                            # Convert formats like "April 15, 2025"
+                            value = str(datetime.strptime(value, "%B %d, %Y").date())
+                        except ValueError:
+                            try:
+                                # Convert formats like "15-04-2025"
+                                value = str(datetime.strptime(value, "%d-%m-%Y").date())
+                            except ValueError:
+                                pass  # leave as is, MySQL will throw error if it's invalid
+
+                # 🟢 Check if it's a new record based on the absence of primary key value in the form
+                if primary_key_value == '' or primary_key_value is None:
+                    # For auto-increment fields, exclude them from INSERT
+                    columns = f"`{column_name}`"
+                    values = f"%s"
+                    query = f"INSERT INTO `{table_name}` ({columns}) VALUES ({values})"
+                    cursor.execute(query, (value,))
+                else:
+                    # 🟢 Safe SQL for update
+                    safe_table_name = f"`{table_name.strip('`')}`"
+                    query = f"UPDATE {safe_table_name} SET `{column_name}` = %s WHERE `{primary_key_name}` = %s"
+                    cursor.execute(query, (value, primary_key_value))
 
         conn.commit()
 
         # ---------------------------------------------
-        # Fetch data again like your admin_dashboard view
+        # Re-fetch updated data (like admin_dashboard)
         data = {}
         cursor.execute("SHOW TABLES")
         tables = [t[0] for t in cursor.fetchall()]
@@ -252,14 +303,11 @@ def update_cell(request):
             rows = cursor.fetchall()
             columns = [desc[0] for desc in cursor.description]
             data[table_name] = {'columns': columns, 'rows': rows}
-        # ---------------------------------------------
 
         cursor.close()
         conn.close()
 
         return render(request, 'admin_dashboard.html', {'data': data, 'saved': 'Saved all changes!'})
-
-
 
 def customer_login(request):
     if request.method == "POST":

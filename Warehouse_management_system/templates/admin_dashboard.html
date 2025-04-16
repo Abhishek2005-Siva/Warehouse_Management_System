@@ -7,6 +7,36 @@
 <head>
     <title>Admin Dashboard</title>
     <style>
+                details {
+            margin-bottom: 20px;
+            border: 1px solid var(--header-color);
+            border-radius: 8px;
+            background-color: var(--table-bg);
+            padding: 10px;
+        }
+
+        summary {
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--text-color);
+            outline: none;
+        }
+
+        summary::-webkit-details-marker {
+            display: none;
+        }
+
+        summary::before {
+            content: "▶ ";
+            display: inline-block;
+            transition: transform 0.2s ease;
+        }
+
+        details[open] summary::before {
+            transform: rotate(90deg);
+        }
+
         :root {
             --bg-color: #ffffff;
             --text-color: #000000;
@@ -166,27 +196,55 @@
         {% endif %}
 
         {% for title, table in data.items %}
-            <h2>{{ title }}</h2>
-            <table>
-                <tr>
-                    {% for col in table.columns %}
-                        <th>{{ col }}</th>
-                    {% endfor %}
-                </tr>
-                {% for row in table.rows %}
+            <details>
+                <summary><h2>{{ title }}</h2></summary>
+                <table>
                     <tr>
-                        {% for cell in row %}
+                        {% for col in table.columns %}
+                            <th>{{ col }}</th>
+                        {% endfor %}
+                    </tr>
+
+                    <!-- Empty Row for New Record -->
+                    <tr>
+                        {% for col in table.columns %}
                             <td>
                                 <input 
                                     type="text"
-                                    name="cell_{{ title }}_{{ table.columns|index:forloop.counter0 }}_{{ table.columns.0 }}_{{ row.0 }}" 
-                                    value="{{ row|index:forloop.counter0 }}">
+                                    name="new_{{ title }}_{{ col }}"
+                                    placeholder="New {{ col }}"
+                                >
                             </td>
                         {% endfor %}
                     </tr>
-                {% endfor %}
-            </table>
+
+                    <!-- Existing Rows -->
+                    {% for row in table.rows %}
+                        <tr>
+                            {% for cell in row %}
+                                <td>
+                                    {% with col=table.columns|index:forloop.counter0 value=row|index:forloop.counter0 %}
+                                        {% if "date" in col|lower %}
+                                            <input 
+                                                type="date"
+                                                name="cell_{{ title }}_{{ col }}_{{ table.columns.0 }}_{{ row.0 }}" 
+                                                value="{{ value|date:'Y-m-d' }}">
+                                        {% else %}
+                                            <input 
+                                                type="text"
+                                                name="cell_{{ title }}_{{ col }}_{{ table.columns.0 }}_{{ row.0 }}" 
+                                                value="{{ value }}">
+                                        {% endif %}
+                                    {% endwith %}
+                                </td>
+                            
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </table>
+            </details>
         {% endfor %}
+
     </form>
 
 </body>
